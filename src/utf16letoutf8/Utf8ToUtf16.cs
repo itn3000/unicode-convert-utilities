@@ -41,37 +41,10 @@ namespace utf16letoutf8
             }
             else if (*data < 0x80)
             {
-                byte* asciiptr = data + 1;
-                switch (endptr - data)
-                {
-                    case 1:
-                        outbuf[0] = (char)*data;
-                        outbuf++;
-                        data++;
-                        return true;
-                    case 2:
-                        outbuf[0] = (char)*data;
-                        outbuf[1] = (char)data[1];
-                        data += 2;
-                        outbuf += 2;
-                        return true;
-                    case 3:
-                        outbuf[0] = (char)*data;
-                        outbuf[1] = (char)data[1];
-                        outbuf[2] = (char)data[2];
-                        data += 3;
-                        outbuf += 3;
-                        return true;
-                    case 4:
-                    default:
-                        outbuf[0] = (char)*data;
-                        outbuf[1] = (char)data[1];
-                        outbuf[2] = (char)data[2];
-                        outbuf[3] = (char)data[3];
-                        data += 4;
-                        outbuf += 4;
-                        return true;
-                }
+                *outbuf = (char)*data;
+                outbuf++;
+                data++;
+                return true;
             }
             else if ((*data & 0xf0) == 0xf0)
             {
