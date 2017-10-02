@@ -10,7 +10,8 @@ namespace utf16letoutf8.bench
     [ShortRunJob]
     public class Utf16UtilityBench
     {
-        [Params(0x12, 0x123, 0x1234)]
+        // [Params(0x12, 0x123, 0x1234)]
+        [Params(0x12)]
         public int CharacterCode;
         [Params(1, 16, 256)]
         public int Length;
@@ -22,7 +23,9 @@ namespace utf16letoutf8.bench
             var str = new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray());
             for (int i = 0; i < LoopNum; i++)
             {
-                Utf16Utility.GetUtf8Bytes(str);
+                byte[] bytes;
+                int count;
+                Utf16Utility.GetUtf8Bytes(str, out bytes, out count);
             }
         }
         [Benchmark]

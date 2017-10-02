@@ -5,7 +5,7 @@ namespace utf16letoutf8
     using System.Runtime.CompilerServices;
     public static class Utf16Utility
     {
-        public static unsafe ArraySegment<byte> GetUtf8Bytes(string source)
+        public static unsafe void GetUtf8Bytes(string source, out byte[] bytes, out int count)
         {
             var retbuf = new byte[source.Length * 3];
             fixed (char* srcptr = source)
@@ -20,10 +20,12 @@ namespace utf16letoutf8
                     {
                         UpdateCharUnsafe(ref retptr, ref iterptr, ref endptr);
                     }
-                    return new ArraySegment<byte>(retbuf, 0, (int)(retptr - beginptr));
+                    bytes = retbuf;
+                    count = (int)(retptr - beginptr);
                 }
             }
         }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static unsafe void UpdateCharUnsafe(ref byte* retptr, ref char* iterptr, ref char* endptr)
         {
             if (*iterptr < 0x80)
