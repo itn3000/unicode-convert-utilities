@@ -4,9 +4,11 @@ namespace utf16letoutf8.bench
 {
     using BenchmarkDotNet.Attributes;
     using BenchmarkDotNet.Attributes.Jobs;
+    using BenchmarkDotNet.Diagnosers;
     using BenchmarkDotNet.Running;
     using System.Text;
     using System.Linq;
+    [MemoryDiagnoser]
     [ShortRunJob]
     public class Utf8To16Bench
     {

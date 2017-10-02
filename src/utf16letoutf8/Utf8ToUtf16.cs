@@ -7,6 +7,8 @@ namespace utf16letoutf8
     using System.Runtime.CompilerServices;
     public static class Utf8ToUtf16
     {
+        [ThreadStatic]
+        static char[] Buffer = null;
         public unsafe static string ToUtf16String(byte[] data, int offset, int count)
         {
             var dataptr = (byte*)Unsafe.AsPointer(ref data[offset]);
@@ -20,10 +22,11 @@ namespace utf16letoutf8
             }
             else
             {
-                var buf = new char[count];
-                char* iterptr = (char*)Unsafe.AsPointer(ref buf[0]);
+                Buffer = Buffer != null && Buffer.Length >= count ? Buffer : new char[count];
+                char* iterptr = (char*)Unsafe.AsPointer(ref Buffer[0]);
+                char* beginptr = iterptr;
                 while (UpdateCharUnsafe(ref dataptr, ref endptr, ref iterptr)) ;
-                return new string(buf, 0, (int)(iterptr - (char*)Unsafe.AsPointer(ref buf[0])));
+                return new string(beginptr, 0, (int)(iterptr - beginptr));
             }
         }
         public static CharEnumerable ToUtf16(byte[] data, int offset)
@@ -41,12 +44,45 @@ namespace utf16letoutf8
             }
             else if (*data < 0x80)
             {
-                *outbuf = (char)*data;
-                outbuf++;
-                data++;
-                return true;
+                unchecked
+                {
+                    do
+                    {
+                        if (data + 8 < endptr && (Unsafe.AsRef<ulong>(data) & 0x8080808080808080L) == 0)
+                        {
+                            outbuf[0] = (char)data[0];
+                            outbuf[1] = (char)data[1];
+                            outbuf[2] = (char)data[2];
+                            outbuf[3] = (char)data[3];
+                            outbuf[4] = (char)data[4];
+                            outbuf[5] = (char)data[5];
+                            outbuf[6] = (char)data[6];
+                            outbuf[7] = (char)data[7];
+                            outbuf += 8;
+                            data += 8;
+                        }
+                        else
+                        {
+                            do
+                            {
+                                *outbuf = (char)*data;
+                                outbuf++;
+                                data++;
+                            } while (data < endptr && *data < 0x80);
+                            return data < endptr;
+                        }
+                    } while (data < endptr && *data < 0x80);
+                    return data < endptr;
+                    // do
+                    // {
+                    //     *outbuf = (char)*data;
+                    //     outbuf++;
+                    //     data++;
+                    // } while (data < endptr && *data < 0x80);
+                    // return data < endptr;
+                }
             }
-            else if ((*data & 0xf0) == 0xf0)
+            if ((*data & 0xf0) == 0xf0)
             {
                 if (data + 4 > endptr)
                 {
