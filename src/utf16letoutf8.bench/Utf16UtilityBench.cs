@@ -1,5 +1,3 @@
-﻿using System;
-
 namespace utf16letoutf8.bench
 {
     using BenchmarkDotNet.Attributes;
@@ -10,7 +8,7 @@ namespace utf16letoutf8.bench
     using System.Linq;
     [MemoryDiagnoser]
     [ShortRunJob]
-    public class Utf8To16Bench
+    public class Utf16UtilityBench
     {
         [Params(0x12, 0x123, 0x1234)]
         public int CharacterCode;
@@ -19,31 +17,22 @@ namespace utf16letoutf8.bench
         [Params(1000)]
         public int LoopNum;
         [Benchmark]
-        public void UnsafeUtf8ToUtf16()
+        public void GetUtf8Bytes()
         {
-            var bytes = Encoding.UTF8.GetBytes(new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray()));
+            var str = new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray());
             for (int i = 0; i < LoopNum; i++)
             {
-                Utf8ToUtf16.ToUtf16String(bytes, 0, Length);
+                Utf16Utility.GetUtf8Bytes(str);
             }
         }
         [Benchmark]
         public void ConvertWithFramework()
         {
-            var bytes = Encoding.UTF8.GetBytes(new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray()));
+            var str = new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray());
             for (int i = 0; i < LoopNum; i++)
             {
-                Encoding.UTF8.GetString(bytes);
+                Encoding.UTF8.GetBytes(str);
             }
-        }
-    }
-
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            // var reporter = BenchmarkRunner.Run<Utf8To16Bench>();
-            BenchmarkRunner.Run<Utf16UtilityBench>();
         }
     }
 }
