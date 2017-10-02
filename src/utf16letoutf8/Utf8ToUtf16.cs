@@ -73,13 +73,6 @@ namespace utf16letoutf8
                         }
                     } while (data < endptr && *data < 0x80);
                     return data < endptr;
-                    // do
-                    // {
-                    //     *outbuf = (char)*data;
-                    //     outbuf++;
-                    //     data++;
-                    // } while (data < endptr && *data < 0x80);
-                    // return data < endptr;
                 }
             }
             if ((*data & 0xf0) == 0xf0)
@@ -274,14 +267,9 @@ namespace utf16letoutf8
                     First = default(char);
                     Second = default(char);
                 }
-                bool IsBOM()
-                {
-                    return CurrentIndex + 3 < Utf8Data.Length
-                        && ((Utf8Data[0] << 16) | (Utf8Data[1] << 8) | (Utf8Data[2])) == 0xefbbbf;
-                }
                 public char Current => (CurrentStatus & SecondFlag) == 0 ? First : Second;
 
-                object IEnumerator.Current => (CurrentStatus & SecondFlag) != 0 ? First : Second;
+                object IEnumerator.Current => (CurrentStatus & SecondFlag) == 0 ? First : Second;
 
                 public void Dispose()
                 {
@@ -292,7 +280,7 @@ namespace utf16letoutf8
                     var ret = UpdateChar(Utf8Data, ref First, ref Second, ref CurrentIndex, out var isSurrogate);
                     if (isSurrogate)
                     {
-                        CurrentStatus = SecondFlag;
+                        CurrentStatus = SurrogateFlag;
                     }
                     return ret;
                 }
