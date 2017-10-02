@@ -11,7 +11,7 @@ namespace utf16letoutf8.test
         {
             var expected = new char[] { (char)0x00, (char)0x7f, (char)0x3f };
             var bytes = Encoding.UTF8.GetBytes(expected);
-            var actual = Utf8ToUtf16.ToUtf16(bytes, 0).ToArray();
+            var actual = Utf8ToUtf16.ToUtf16Enumerable(bytes, 0).ToArray();
             Assert.Equal(expected, actual);
         }
         [Fact]
@@ -19,7 +19,7 @@ namespace utf16letoutf8.test
         {
             var expected = new char[] { (char)0x123, (char)0x80, (char)0x7ff };
             var bytes = Encoding.UTF8.GetBytes(expected);
-            var actual = Utf8ToUtf16.ToUtf16(bytes, 0).ToArray();
+            var actual = Utf8ToUtf16.ToUtf16Enumerable(bytes, 0).ToArray();
             Assert.Equal(expected, actual);
         }
         [Fact]
@@ -27,7 +27,7 @@ namespace utf16letoutf8.test
         {
             var expected = new char[] { (char)0x1234, (char)0x800, (char)0xffff };
             var bytes = Encoding.UTF8.GetBytes(expected);
-            var actual = Utf8ToUtf16.ToUtf16(bytes, 0).ToArray();
+            var actual = Utf8ToUtf16.ToUtf16Enumerable(bytes, 0).ToArray();
             Assert.Equal(expected, actual);
         }
         [Fact]
@@ -35,7 +35,7 @@ namespace utf16letoutf8.test
         {
             var expected = new char[] { (char)0xdbc0, (char)0xdc00, (char)0xdbc0, (char)0xdc30, (char)0xdbff, (char)0xdfff };
             var bytes = Encoding.UTF8.GetBytes(expected);
-            var actual = Utf8ToUtf16.ToUtf16(bytes, 0).ToArray();
+            var actual = Utf8ToUtf16.ToUtf16Enumerable(bytes, 0).ToArray();
             Assert.Equal(expected, actual);
         }
         [Fact]
@@ -43,7 +43,7 @@ namespace utf16letoutf8.test
         {
             var expected = new char[]{(char)0xfeff, (char)0x3f};
             var bytes = Encoding.UTF8.GetBytes(expected);
-            var actual = Utf8ToUtf16.ToUtf16(bytes, 0).ToArray();
+            var actual = Utf8ToUtf16.ToUtf16Enumerable(bytes, 0).ToArray();
             Assert.Equal(expected, actual);
         }
         [Fact]

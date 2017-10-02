@@ -11,6 +11,10 @@ namespace utf16letoutf8
         static char[] Buffer = null;
         public unsafe static string ToUtf16String(byte[] data, int offset, int count)
         {
+            if(data.Length < offset + count)
+            {
+                throw new IndexOutOfRangeException("offset + count exceeds on byte array length");
+            }
             var dataptr = (byte*)Unsafe.AsPointer(ref data[offset]);
             var endptr = dataptr + count;
             if (count < 128)
@@ -29,12 +33,6 @@ namespace utf16letoutf8
                 return new string(beginptr, 0, (int)(iterptr - beginptr));
             }
         }
-        public static CharEnumerable ToUtf16(byte[] data, int offset)
-        {
-            return new CharEnumerable(data, offset);
-        }
-        internal const byte SecondFlag = 1;
-        internal const byte SurrogateFlag = 2;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static unsafe bool UpdateCharUnsafe(ref byte* data, ref byte* endptr, ref char* outbuf)
         {
@@ -148,6 +146,12 @@ namespace utf16letoutf8
             }
             return true;
         }
+        public static CharEnumerable ToUtf16Enumerable(byte[] data, int offset)
+        {
+            return new CharEnumerable(data, offset);
+        }
+        internal const byte SecondFlag = 1;
+        internal const byte SurrogateFlag = 2;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         static bool UpdateChar(byte[] Utf8Data, ref char First, ref char Second, ref int CurrentIndex, out bool isSurrogate)
         {
