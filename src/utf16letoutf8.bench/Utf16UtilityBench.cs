@@ -10,32 +10,22 @@ namespace utf16letoutf8.bench
     [ShortRunJob]
     public class Utf16UtilityBench
     {
-        [Params(0x12, 0x123, 0x1234)]
-        // [Params(0x12)]
+        // [Params(0x12, 0x123, 0x1234)]
+        [Params(0x123)]
         public int CharacterCode;
-        [Params(1, 16, 256)]
+        [Params(16, 1024)]
         // [Params(1024)]
         public int Length;
         [Params(1000)]
         public int LoopNum;
         [Benchmark]
-        public void GetUtf8Bytes()
+        public void ConvertWithFrameworkPreallocated()
         {
             var str = new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray());
+            var buf = new byte[str.Length * 3];
             for (int i = 0; i < LoopNum; i++)
             {
-                byte[] bytes;
-                int count;
-                Utf16Utility.GetUtf8Bytes(str, out bytes, out count);
-            }
-        }
-        [Benchmark]
-        public void ConvertWithFramework()
-        {
-            var str = new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray());
-            for (int i = 0; i < LoopNum; i++)
-            {
-                Encoding.UTF8.GetBytes(str);
+                Encoding.UTF8.GetBytes(str, 0, str.Length, buf, 0);
             }
         }
         [Benchmark]

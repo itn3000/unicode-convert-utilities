@@ -54,26 +54,48 @@ namespace utf16letoutf8
         {
             if (*iterptr < 0x80)
             {
-                char* stopptr = endptr - 4;
                 // U+7F
-                while (iterptr < stopptr)
+                byte* iterbyteptr = (byte*)iterptr;
+                byte* stopptr = (byte*)endptr - 8;
+                if (IsLittleEndian)
                 {
-                    var ch = *(int*)iterptr;
-                    var ch2 = *(int*)(iterptr + 2);
-                    if (((ch | ch2) & unchecked(0xff80ff80)) == 0)
+                    while (iterbyteptr < stopptr)
                     {
-                        *retptr = (byte)*iterptr;
-                        retptr[1] = (byte)iterptr[1];
-                        retptr[2] = (byte)iterptr[2];
-                        retptr[3] = (byte)iterptr[3];
+                        if ((*(ulong*)iterbyteptr & 0xff80ff80ff80ff80UL) == 0)
+                        {
+                            *retptr = *iterbyteptr;
+                            retptr[1] = iterbyteptr[2];
+                            retptr[2] = iterbyteptr[4];
+                            retptr[3] = iterbyteptr[6];
+                        }
+                        else
+                        {
+                            break;
+                        }
+                        retptr += 4;
+                        iterbyteptr += 8;
                     }
-                    else
-                    {
-                        break;
-                    }
-                    retptr += 4;
-                    iterptr += 4;
                 }
+                else
+                {
+                    while (iterbyteptr < stopptr)
+                    {
+                        if ((*(ulong*)iterbyteptr & 0xff80ff80ff80ff80UL) == 0)
+                        {
+                            *retptr = iterbyteptr[1];
+                            *(retptr + 1) = iterbyteptr[3];
+                            retptr[2] = iterbyteptr[5];
+                            retptr[3] = iterbyteptr[7];
+                        }
+                        else
+                        {
+                            break;
+                        }
+                        retptr += 4;
+                        iterbyteptr += 8;
+                    }
+                }
+                iterptr = (char*)iterbyteptr;
                 do
                 {
                     *retptr = (byte)*iterptr;
@@ -86,18 +108,32 @@ namespace utf16letoutf8
             {
                 // U+7FF
                 // 
-                *retptr = (byte)(
-                    // 3bit
-                    0xc0
-                    // 5bit
-                    | ((*iterptr & 0x7c0) >> 6)
-                );
-                retptr[1] = (byte)(
-                    // 2bit
-                    0x80
-                    // 6bit
-                    | ((*iterptr & 0x3f))
-                );
+                if (IsLittleEndian)
+                {
+                    *(ushort*)(retptr) = (ushort)(
+                        0x80c0
+                        | ((*iterptr & 0x3f) << 8)
+                        | ((*iterptr & 0x7c0) >> 3)
+                        );
+                }else{
+                    *(ushort*)(retptr) = (ushort)(
+                        0xc080
+                        | ((*iterptr & 0x7c0) << 2)
+                        | ((*iterptr & 0x3f))
+                        );
+                }
+                // *retptr = (byte)(
+                //     // 3bit
+                //     0xc0
+                //     // 5bit
+                //     | ((*iterptr & 0x7c0) >> 6)
+                // );
+                // retptr[1] = (byte)(
+                //     // 2bit
+                //     0x80
+                //     // 6bit
+                //     | ((*iterptr & 0x3f))
+                // );
                 retptr += 2;
                 iterptr++;
             }

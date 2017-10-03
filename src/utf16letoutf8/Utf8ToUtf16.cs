@@ -11,7 +11,7 @@ namespace utf16letoutf8
         static char[] Buffer = null;
         public unsafe static string ToUtf16String(byte[] data, int offset, int count)
         {
-            if(data.Length < offset + count)
+            if (data.Length < offset + count)
             {
                 throw new IndexOutOfRangeException("offset + count exceeds on byte array length");
             }
@@ -33,44 +33,66 @@ namespace utf16letoutf8
                 return new string(beginptr, 0, (int)(iterptr - beginptr));
             }
         }
+        static readonly bool IsLittleEndian = BitConverter.IsLittleEndian;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static unsafe bool UpdateCharUnsafe(ref byte* data, ref byte* endptr, ref char* outbuf)
         {
-            if (data >= endptr)
+            if(data >= endptr)
             {
                 return false;
             }
-            else if (*data < 0x80)
+            if (*data < 0x80)
             {
                 unchecked
                 {
-                    do
+                    byte* stopptr = endptr - 8;
+                    byte* outbyteptr = IsLittleEndian ? (byte*)outbuf : (byte*)outbuf + 1;
+                    while (data < stopptr && ((*(ulong*)data & unchecked(0x8080808080808080UL)) == 0))
                     {
-                        if (data + 8 < endptr && (Unsafe.AsRef<ulong>(data) & 0x8080808080808080L) == 0)
-                        {
-                            outbuf[0] = (char)data[0];
-                            outbuf[1] = (char)data[1];
-                            outbuf[2] = (char)data[2];
-                            outbuf[3] = (char)data[3];
-                            outbuf[4] = (char)data[4];
-                            outbuf[5] = (char)data[5];
-                            outbuf[6] = (char)data[6];
-                            outbuf[7] = (char)data[7];
-                            outbuf += 8;
-                            data += 8;
-                        }
-                        else
-                        {
-                            do
-                            {
-                                *outbuf = (char)*data;
-                                outbuf++;
-                                data++;
-                            } while (data < endptr && *data < 0x80);
-                            return data < endptr;
-                        }
-                    } while (data < endptr && *data < 0x80);
-                    return data < endptr;
+                        outbyteptr[0] = data[0];
+                        outbyteptr[2] = data[1];
+                        outbyteptr[4] = data[2];
+                        outbyteptr[6] = data[3];
+                        outbyteptr[8] = data[4];
+                        outbyteptr[10] = data[5];
+                        outbyteptr[12] = data[6];
+                        outbyteptr[14] = data[7];
+                        outbyteptr += 16;
+                        data += 8;
+                    }
+                    // do{
+                    // if (data < stopptr && (Unsafe.AsRef<ulong>(data) & 0x8080808080808080L) == 0)
+                    // {
+                    //     outbuf[0] = (char)data[0];
+                    //     outbuf[1] = (char)data[1];
+                    //     outbuf[2] = (char)data[2];
+                    //     outbuf[3] = (char)data[3];
+                    //     outbuf[4] = (char)data[4];
+                    //     outbuf[5] = (char)data[5];
+                    //     outbuf[6] = (char)data[6];
+                    //     outbuf[7] = (char)data[7];
+                    //     outbuf += 8;
+                    //     data += 8;
+                    // }
+                    // else
+                    // {
+                    //     do
+                    //     {
+                    //         *outbuf = (char)*data;
+                    //         outbuf++;
+                    //         data++;
+                    //     } while (data < endptr && *data < 0x80);
+                    //     return data < endptr;
+                    // }
+                    // } while (data < endptr && *data < 0x80);
+                    while (data < endptr && *data < 0x80)
+                    {
+                        *outbyteptr = *data;
+                        outbyteptr += 2;
+                        data++;
+                    }
+                    outbuf = (char*)(outbyteptr - (IsLittleEndian ? 0 : 1));
+                    return true;
                 }
             }
             if ((*data & 0xf0) == 0xf0)
@@ -88,24 +110,25 @@ namespace utf16letoutf8
                     - 1) & 0x0f) << 6;
                 outbuf[0] = (char)(
                     // 6bit
-                    (char)0xd800
+                    0xd800
                     // 4bit
-                    | (char)w
+                    | w
                     // 4bit
-                    | (((char)*(data + 1) & 0x0f) << 2)
+                    | ((*(data + 1) & 0x0f) << 2)
                     // 2bit
-                    | (((char)*(data + 2) & 0x30) >> 4)
+                    | ((*(data + 2) & 0x30) >> 4)
                 );
-                outbuf[1] = (char)(
+                outbuf++;
+                *outbuf = (char)(
                     // 6bit
-                    (char)0xdc00 |
+                    0xdc00 |
                     // 4bit
-                    (((char)*(data + 2) & 0xf) << 6) |
+                    ((*(data + 2) & 0xf) << 6) |
                     // 6bit
-                    ((char)*(data + 3) & 0x3f)
+                    (*(data + 3) & 0x3f)
                 );
                 data += 4;
-                outbuf += 2;
+                outbuf++;
             }
             else if ((*data & 0xe0) == 0xe0)
             {
@@ -119,9 +142,9 @@ namespace utf16letoutf8
                 }
                 // U+FFFF
                 // 4 + 6 + 6 = 16
-                outbuf[0] = (char)((char)(*data & 0x0f) << 12
-                    | (char)(*(data + 1) & 0x3f) << 6
-                    | (char)(*(data + 2) & 0x3f));
+                outbuf[0] = (char)((*data & 0x0f) << 12
+                    | (*(data + 1) & 0x3f) << 6
+                    | (*(data + 2) & 0x3f));
                 data += 3;
                 outbuf++;
             }
@@ -136,7 +159,7 @@ namespace utf16letoutf8
                 {
                     throw new InvalidOperationException("invalid utf-8 byte sequence(not shortest)");
                 }
-                outbuf[0] = (char)((((char)*data & 0x1f) << 6) | (((char)*(data + 1)) & 0x3f));
+                outbuf[0] = (char)(((*data & 0x1f) << 6) | ((*(data + 1)) & 0x3f));
                 data += 2;
                 outbuf++;
             }

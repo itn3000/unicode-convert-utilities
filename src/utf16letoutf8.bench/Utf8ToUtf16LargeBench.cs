@@ -1,22 +1,19 @@
-﻿using System;
-
 namespace utf16letoutf8.bench
 {
     using BenchmarkDotNet.Attributes;
     using BenchmarkDotNet.Attributes.Jobs;
-    using BenchmarkDotNet.Diagnosers;
     using BenchmarkDotNet.Running;
-    using System.Text;
+    using System;
     using System.Linq;
-    [MemoryDiagnoser]
+    using System.Text;
     [ShortRunJob]
-    public class Utf8To16Bench
+    public class Utf8ToUtf16LargeBench
     {
+        [Params(1024 * 1024)]
+        public int Length;
         [Params(0x12, 0x123, 0x1234)]
         public int CharacterCode;
-        [Params(0xff, 0xfff)]
-        public int Length;
-        [Params(1000)]
+        [Params(10)]
         public int LoopNum;
         [Benchmark]
         public void UnsafeUtf8ToUtf16()
@@ -35,16 +32,6 @@ namespace utf16letoutf8.bench
             {
                 Encoding.UTF8.GetString(bytes);
             }
-        }
-    }
-
-    class Program
-    {
-        static void Main(string[] args)
-        {
-            var reporter = BenchmarkRunner.Run<Utf8To16Bench>();
-            // BenchmarkRunner.Run<Utf8ToUtf16LargeBench>();
-            // BenchmarkRunner.Run<Utf16UtilityBench>();
         }
     }
 }
