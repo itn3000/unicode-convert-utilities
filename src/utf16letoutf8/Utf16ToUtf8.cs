@@ -14,8 +14,6 @@ namespace utf16letoutf8
         {
             fixed (char* srcptr = source)
             {
-                // char *endptr = srcptr + source.Length;
-                // GetUtf8BytesInternal(srcptr, ref endptr, buffer, offset, out count);
                 unchecked
                 {
                     char* endptr = srcptr + source.Length;
@@ -41,23 +39,6 @@ namespace utf16letoutf8
                 byte* retptr = (byte*)Unsafe.AsPointer(ref buffer[bufferoffset]);
                 byte* beginptr = retptr;
                 byte* endretptr = beginptr + buffer.Length - bufferoffset;
-                while (iterptr < endptr && retptr < endretptr)
-                {
-                    UpdateCharUnsafe(ref retptr, ref endretptr, ref iterptr, ref endptr);
-                }
-                count = (int)(retptr - beginptr);
-            }
-        }
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static unsafe void GetUtf8BytesInternal(char* srcptr, ref char* endptr, byte[] buffer, int offset, out int count)
-        {
-            unchecked
-            {
-                // char* endptr = srcptr + length;
-                char* iterptr = srcptr;
-                byte* retptr = (byte*)Unsafe.AsPointer(ref buffer[0]);
-                byte* beginptr = retptr;
-                byte* endretptr = beginptr + buffer.Length - offset;
                 while (iterptr < endptr && retptr < endretptr)
                 {
                     UpdateCharUnsafe(ref retptr, ref endretptr, ref iterptr, ref endptr);
@@ -200,6 +181,7 @@ namespace utf16letoutf8
             sbyte currentCharPosition;
             public Utf8Enumerator(char[] ar, int offset, int count)
             {
+                throw new NotImplementedException();
                 charArray = ar;
                 currentIndex = offset - 1;
                 maxCount = count;
@@ -211,6 +193,7 @@ namespace utf16letoutf8
             }
             public bool TryGetNext(out byte b)
             {
+                throw new NotImplementedException();
                 switch (currentCharPosition)
                 {
                     case 0:
@@ -230,6 +213,25 @@ namespace utf16letoutf8
                         break;
                 }
                 return false;
+            }
+            void UpdateBytes()
+            {
+                if (charArray[currentIndex] < 0x80)
+                {
+                    // U+7F
+                }
+                else if (charArray[currentIndex] < 0x800)
+                {
+                    // U+7FF
+                }
+                else if ((charArray[currentIndex] & 0xfc00) == 0xd800)
+                {
+                    // surrogate
+                }
+                else
+                {
+                    // U+FFFF
+                }
             }
             void MoveNextCharPosition()
             {
