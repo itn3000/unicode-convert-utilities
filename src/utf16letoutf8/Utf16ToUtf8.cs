@@ -7,33 +7,99 @@ namespace utf16letoutf8
     {
         public static unsafe void GetUtf8Bytes(string source, out byte[] bytes, out int count)
         {
-            var retbuf = new byte[source.Length * 3];
+            bytes = new byte[source.Length * 3];
+            GetUtf8Bytes(source, bytes, 0, out count);
+        }
+        public static unsafe void GetUtf8Bytes(string source, byte[] buffer, int offset, out int count)
+        {
             fixed (char* srcptr = source)
             {
+                // char *endptr = srcptr + source.Length;
+                // GetUtf8BytesInternal(srcptr, ref endptr, buffer, offset, out count);
                 unchecked
                 {
                     char* endptr = srcptr + source.Length;
                     char* iterptr = srcptr;
-                    byte* retptr = (byte*)Unsafe.AsPointer(ref retbuf[0]);
+                    byte* retptr = (byte*)Unsafe.AsPointer(ref buffer[offset]);
                     byte* beginptr = retptr;
-                    while (iterptr < endptr)
+                    byte* endretptr = beginptr + buffer.Length - offset;
+                    while (iterptr < endptr && retptr < endretptr)
                     {
-                        UpdateCharUnsafe(ref retptr, ref iterptr, ref endptr);
+                        UpdateCharUnsafe(ref retptr, ref endretptr, ref iterptr, ref endptr);
                     }
-                    bytes = retbuf;
                     count = (int)(retptr - beginptr);
                 }
             }
         }
+        public static unsafe void GetUtf8Bytes(char[] characters, int characterCount, int characterOffset, byte[] buffer, int bufferoffset, out int count)
+        {
+            char* srcptr = (char*)Unsafe.AsPointer(ref characters[characterOffset]);
+            unchecked
+            {
+                char* endptr = srcptr + characterCount;
+                char* iterptr = srcptr;
+                byte* retptr = (byte*)Unsafe.AsPointer(ref buffer[bufferoffset]);
+                byte* beginptr = retptr;
+                byte* endretptr = beginptr + buffer.Length - bufferoffset;
+                while (iterptr < endptr && retptr < endretptr)
+                {
+                    UpdateCharUnsafe(ref retptr, ref endretptr, ref iterptr, ref endptr);
+                }
+                count = (int)(retptr - beginptr);
+            }
+        }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static unsafe void UpdateCharUnsafe(ref byte* retptr, ref char* iterptr, ref char* endptr)
+        static unsafe void GetUtf8BytesInternal(char* srcptr, ref char* endptr, byte[] buffer, int offset, out int count)
+        {
+            unchecked
+            {
+                // char* endptr = srcptr + length;
+                char* iterptr = srcptr;
+                byte* retptr = (byte*)Unsafe.AsPointer(ref buffer[0]);
+                byte* beginptr = retptr;
+                byte* endretptr = beginptr + buffer.Length - offset;
+                while (iterptr < endptr && retptr < endretptr)
+                {
+                    UpdateCharUnsafe(ref retptr, ref endretptr, ref iterptr, ref endptr);
+                }
+                count = (int)(retptr - beginptr);
+            }
+        }
+        static readonly ulong MaskForAscii = BitConverter.IsLittleEndian ? 0xff80ff80ff80ff80UL : 0x80ff80ff80ff80ffUL;
+        static readonly bool IsLittleEndian = BitConverter.IsLittleEndian;
+        // static readonly uint MaskForAscii = BitConverter.IsLittleEndian ? 0xff00ff00U : 0x00ff00ffU;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static unsafe void UpdateCharUnsafe(ref byte* retptr, ref byte* retendptr, ref char* iterptr, ref char* endptr)
         {
             if (*iterptr < 0x80)
             {
+                char* stopptr = endptr - 4;
                 // U+7F
-                *retptr = (byte)*iterptr;
-                retptr++;
-                iterptr++;
+                while (iterptr < stopptr)
+                {
+                    var ch = *(int*)iterptr;
+                    var ch2 = *(int*)(iterptr + 2);
+                    if (((ch | ch2) & unchecked(0xff80ff80)) == 0)
+                    {
+                        *retptr = (byte)*iterptr;
+                        retptr[1] = (byte)iterptr[1];
+                        retptr[2] = (byte)iterptr[2];
+                        retptr[3] = (byte)iterptr[3];
+                    }
+                    else
+                    {
+                        break;
+                    }
+                    retptr += 4;
+                    iterptr += 4;
+                }
+                do
+                {
+                    *retptr = (byte)*iterptr;
+                    retptr++;
+                    iterptr++;
+                } while (iterptr < endptr && *iterptr < 0x80);
+                return;
             }
             else if (*iterptr < 0x800)
             {
@@ -41,13 +107,13 @@ namespace utf16letoutf8
                 // 
                 *retptr = (byte)(
                     // 3bit
-                    0xc0 
+                    0xc0
                     // 5bit
                     | ((*iterptr & 0x7c0) >> 6)
                 );
                 retptr[1] = (byte)(
                     // 2bit
-                    0x80 
+                    0x80
                     // 6bit
                     | ((*iterptr & 0x3f))
                 );
@@ -56,7 +122,7 @@ namespace utf16letoutf8
             }
             else if ((*iterptr & 0xfc00) == 0xd800)
             {
-                if(iterptr + 1 >= endptr || (iterptr[1] & 0xfc00) != 0xdc00)
+                if (iterptr + 1 >= endptr || (iterptr[1] & 0xfc00) != 0xdc00)
                 {
                     throw new InvalidOperationException("invalid utf-16 sequence(missing surrogate pair)");
                 }
@@ -64,7 +130,7 @@ namespace utf16letoutf8
                 var u = ((0x03c0 & *iterptr) >> 6) + 1;
                 *retptr = (byte)(
                     // 5bit
-                    0xf0 
+                    0xf0
                     // 3bit
                     | (u >> 2)
                 );

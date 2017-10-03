@@ -43,6 +43,15 @@ namespace utf16letoutf8.test
             var actual = Encoding.UTF8.GetString(bytes, 0, count).ToCharArray();
             Assert.Equal(expected.Select(x => (int)x), actual.Select(x => (int)x));
         }
+        [Fact]
+        public void Utf8BytesU7FAllocated()
+        {
+            var expected = Enumerable.Range(0, 10).Select(x => (char)(x + 1)).ToArray();
+            var buf = new byte[expected.Length];
+            Utf16Utility.GetUtf8Bytes(new string(expected), buf, 0, out var count);
+            var actual = Encoding.UTF8.GetString(buf, 0, count).ToCharArray();
+            Assert.Equal(expected.Select(x => (int)x), actual.Select(x => (int)x));
+        }
         // [Fact]
         public void AsciiString()
         {
