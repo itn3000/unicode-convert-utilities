@@ -12,9 +12,10 @@ namespace utf16letoutf8.bench
     [ShortRunJob]
     public class Utf8To16Bench
     {
-        [Params(0x12, 0x123, 0x1234)]
+        // [Params(0x12, 0x123, 0x1234)]
+        [Params(0x12)]
         public int CharacterCode;
-        [Params(1, 16, 256)]
+        [Params(16, 10*1024)]
         public int Length;
         [Params(1000)]
         public int LoopNum;
@@ -42,8 +43,8 @@ namespace utf16letoutf8.bench
     {
         static void Main(string[] args)
         {
-            // var reporter = BenchmarkRunner.Run<Utf8To16Bench>();
-            BenchmarkRunner.Run<Utf16UtilityBench>();
+            var reporter = BenchmarkRunner.Run<Utf8To16Bench>();
+            // BenchmarkRunner.Run<Utf16UtilityBench>();
         }
     }
 }
