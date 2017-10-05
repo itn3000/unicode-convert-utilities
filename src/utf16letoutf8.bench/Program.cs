@@ -15,7 +15,7 @@ namespace utf16letoutf8.bench
         // [Params(0x12, 0x123, 0x1234)]
         [Params(0x12)]
         public int CharacterCode;
-        [Params(0xff, 0xfff)]
+        [Params(0xffff)]
         public int Length;
         [Params(1000)]
         public int LoopNum;
@@ -45,6 +45,12 @@ namespace utf16letoutf8.bench
         {
             var reporter = BenchmarkRunner.Run<Utf8To16Bench>();
             // BenchmarkRunner.Run<Utf16UtilityBench>();
+            // var bench = new Utf8To16Bench();
+            // bench.CharacterCode = 0x12;
+            // bench.Length = 0x1ffff;
+            // bench.LoopNum = 10;
+            // bench.UnsafeUtf8ToUtf16();
+            // bench.ConvertWithFramework();
         }
     }
 }
