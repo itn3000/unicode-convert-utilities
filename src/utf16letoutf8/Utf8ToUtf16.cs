@@ -7,9 +7,33 @@ namespace utf16letoutf8
     using System.Runtime.CompilerServices;
     public static class Utf8ToUtf16
     {
+        public interface InvalidDataProcessor
+        {
+            void RetrieveError(ref byte value, ref char currentPosition);
+        }
+        public class ThrowExceptionWhenInvalidData : InvalidDataProcessor
+        {
+            public void RetrieveError(ref byte value, ref char currentPosition)
+            {
+                throw new InvalidOperationException($"invalid utf-8 byte data({value})");
+            }
+        }
+        public class ReplaceCharacter : InvalidDataProcessor
+        {
+            static readonly public ReplaceCharacter Default = new ReplaceCharacter((char)0xfffd);
+            char _altChar;
+            public ReplaceCharacter(char ch)
+            {
+                _altChar = ch;
+            }
+            public void RetrieveError(ref byte value, ref char currentPosition)
+            {
+                currentPosition = _altChar;
+            }
+        }
         [ThreadStatic]
         static char[] Buffer = null;
-        public unsafe static string ToUtf16String(byte[] data, int offset, int count)
+        public unsafe static string ToUtf16String(byte[] data, int offset, int count, InvalidDataProcessor processor = null)
         {
             if (data.Length < offset + count)
             {
@@ -17,11 +41,11 @@ namespace utf16letoutf8
             }
             var dataptr = (byte*)Unsafe.AsPointer(ref data[offset]);
             var endptr = dataptr + count;
-            if (count < 128)
+            if (count < 257)
             {
                 var buf = stackalloc char[count];
                 char* iterptr = buf;
-                while (UpdateCharUnsafe(ref dataptr, ref endptr, ref iterptr)) ;
+                while (UpdateCharUnsafe(ref dataptr, ref endptr, ref iterptr, processor)) ;
                 return new string(buf, 0, (int)(iterptr - buf));
             }
             else
@@ -29,13 +53,13 @@ namespace utf16letoutf8
                 Buffer = Buffer != null && Buffer.Length >= count ? Buffer : new char[count];
                 char* iterptr = (char*)Unsafe.AsPointer(ref Buffer[0]);
                 char* beginptr = iterptr;
-                while (UpdateCharUnsafe(ref dataptr, ref endptr, ref iterptr)) ;
+                while (UpdateCharUnsafe(ref dataptr, ref endptr, ref iterptr, processor)) ;
                 return new string(beginptr, 0, (int)(iterptr - beginptr));
             }
         }
-        static readonly bool IsLittleEndian = BitConverter.IsLittleEndian;
+        const char UnicodeInvalidChar = (char)0xfffd;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        internal static unsafe bool UpdateCharUnsafe(ref byte* data, ref byte* endptr, ref char* outbuf)
+        internal static unsafe bool UpdateCharUnsafe(ref byte* data, ref byte* endptr, ref char* outbuf, InvalidDataProcessor errorProcessor)
         {
             if(data >= endptr)
             {
@@ -45,53 +69,64 @@ namespace utf16letoutf8
             {
                 unchecked
                 {
+                    bool IsLittleEndian = BitConverter.IsLittleEndian;
                     byte* stopptr = endptr - 8;
-                    byte* outbyteptr = IsLittleEndian ? (byte*)outbuf : (byte*)outbuf + 1;
-                    while (data < stopptr && ((*(ulong*)data & unchecked(0x8080808080808080UL)) == 0))
+                    while(data < stopptr)
                     {
-                        outbyteptr[0] = data[0];
-                        outbyteptr[2] = data[1];
-                        outbyteptr[4] = data[2];
-                        outbyteptr[6] = data[3];
-                        outbyteptr[8] = data[4];
-                        outbyteptr[10] = data[5];
-                        outbyteptr[12] = data[6];
-                        outbyteptr[14] = data[7];
-                        outbyteptr += 16;
-                        data += 8;
+                        ref var ch = ref *(uint*)data;
+                        ref var ch2 = ref *(uint*)(data + 4);
+                        if(((ch|ch2) & unchecked(0x80808080U)) == 0)
+                        {
+                            *(ulong*)outbuf = unchecked((ulong)((ch & 0x7f) | ((ch & 0x7f00) << 8) | ((ch & 0x7f0000) << 16) | ((ch & 0x7f000000) << 24)));
+                            *(ulong*)(outbuf + 4) = unchecked((ulong)((ch2 & 0x7f) | ((ch2 & 0x7f00) << 8) | ((ch2 & 0x7f0000) << 16) | ((ch2 & 0x7f000000) << 24)));
+                            // outbuf[0] = (char)(ch & 0x7f);
+                            // outbuf[1] = (char)((ch & 0x7f00) >> 8);
+                            // outbuf[2] = (char)((ch & 0x7f0000) >> 16);
+                            // outbuf[3] = (char)((ch & 0x7f000000) >> 24);
+                            // outbuf[4] = (char)(ch2 & 0x7f);
+                            // outbuf[5] = (char)((ch2 & 0x7f00) >> 8);
+                            // outbuf[6] = (char)((ch2 & 0x7f0000) >> 16);
+                            // outbuf[7] = (char)((ch2 & 0x7f000000) >> 24);
+                            data += 8;
+                            outbuf += 8;
+                        }else{
+                            break;
+                        }
                     }
-                    // do{
-                    // if (data < stopptr && (Unsafe.AsRef<ulong>(data) & 0x8080808080808080L) == 0)
-                    // {
-                    //     outbuf[0] = (char)data[0];
-                    //     outbuf[1] = (char)data[1];
-                    //     outbuf[2] = (char)data[2];
-                    //     outbuf[3] = (char)data[3];
-                    //     outbuf[4] = (char)data[4];
-                    //     outbuf[5] = (char)data[5];
-                    //     outbuf[6] = (char)data[6];
-                    //     outbuf[7] = (char)data[7];
-                    //     outbuf += 8;
-                    //     data += 8;
-                    // }
-                    // else
-                    // {
-                    //     do
-                    //     {
-                    //         *outbuf = (char)*data;
-                    //         outbuf++;
-                    //         data++;
-                    //     } while (data < endptr && *data < 0x80);
-                    //     return data < endptr;
-                    // }
-                    // } while (data < endptr && *data < 0x80);
-                    while (data < endptr && *data < 0x80)
+                    while(data < endptr)
                     {
-                        *outbyteptr = *data;
-                        outbyteptr += 2;
+                        *outbuf = (char)*data;
+                        outbuf++;
                         data++;
                     }
-                    outbuf = (char*)(outbyteptr - (IsLittleEndian ? 0 : 1));
+                    // byte* outbyteptr = IsLittleEndian ? (byte*)outbuf : (byte*)outbuf + 1;
+                    // while (data < stopptr)
+                    // {
+                    //     if ((*(ulong*)data & unchecked(0x8080808080808080UL)) == 0)
+                    //     {
+                    //         outbyteptr[0] = data[0];
+                    //         outbyteptr[2] = data[1];
+                    //         outbyteptr[4] = data[2];
+                    //         outbyteptr[6] = data[3];
+                    //         outbyteptr[8] = data[4];
+                    //         outbyteptr[10] = data[5];
+                    //         outbyteptr[12] = data[6];
+                    //         outbyteptr[14] = data[7];
+                    //         outbyteptr += 16;
+                    //         data += 8;
+                    //     }
+                    //     else
+                    //     {
+                    //         break;
+                    //     }
+                    // }
+                    // while (data < endptr && *data < 0x80)
+                    // {
+                    //     *outbyteptr = *data;
+                    //     outbyteptr += 2;
+                    //     data++;
+                    // }
+                    // outbuf = (char*)(outbyteptr - (IsLittleEndian ? 0 : 1));
                     return true;
                 }
             }
@@ -99,12 +134,76 @@ namespace utf16letoutf8
             {
                 if (data + 4 > endptr)
                 {
-                    return false;
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data++;
+                    return true;
                 }
-                if (((*data & 0x07) | (*(data + 1) & 0x30)) == 0)
+                // between U+110000 and U+1FFFFF should retrieve as invalid unicode point
+                if (((*data & 0x07) | (*(data + 1) & 0x30)) == 0 || (((*data & 0x03) | (*(data + 1) & 0x30)) != 0))
                 {
-                    throw new InvalidOperationException("invalid utf-8 byte sequence(not shortest)");
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data++;
+                    return true;
                 }
+                else if ((*(data + 1) & 0x80) == 0)
+                {
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data++;
+                    return true;
+                }
+                else if ((*(data + 2) & 0x80) == 0)
+                {
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data += 2;
+                    return true;
+                }
+                else if ((*(data + 3) & 0x80) == 0)
+                {
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data += 3;
+                    return true;
+                }
+                // U+10FFFF(surrogate pair)
                 var w = ((((((*data) & 0x7) << 2)
                     | ((*(data + 1) & 0x30) >> 4))
                     - 1) & 0x0f) << 6;
@@ -134,11 +233,59 @@ namespace utf16letoutf8
             {
                 if (data + 3 > endptr)
                 {
-                    return false;
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data++;
+                    return true;
                 }
-                if (((*data & 0xf) | (*(data + 1) & 0x20)) == 0)
+                if ((((*data & 0xf) | (*(data + 1) & 0x20)) == 0))
                 {
-                    throw new InvalidOperationException("invalid byte sequence(not shortest)");
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    data++;
+                    outbuf++;
+                    return true;
+                }
+                else if ((*(data + 1) & 0x80) == 0)
+                {
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data++;
+                    return true;
+                }
+                else if ((*(data + 2) & 0x80) == 0)
+                {
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data += 2;
+                    return true;
                 }
                 // U+FFFF
                 // 4 + 6 + 6 = 16
@@ -152,12 +299,32 @@ namespace utf16letoutf8
             {
                 if (data + 2 > endptr)
                 {
-                    return false;
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data++;
+                    return true;
                 }
                 // U+07FF
-                if ((*data & 0x1e) == 0)
+                if ((*data & 0x1e) == 0 || ((*(data + 1) & 0x80) == 0))
                 {
-                    throw new InvalidOperationException("invalid utf-8 byte sequence(not shortest)");
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data++;
+                    return true;
                 }
                 outbuf[0] = (char)(((*data & 0x1f) << 6) | ((*(data + 1)) & 0x3f));
                 data += 2;
@@ -165,7 +332,17 @@ namespace utf16letoutf8
             }
             else
             {
-                throw new InvalidOperationException("unknown byte data");
+                if (errorProcessor != null)
+                {
+                    errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                }
+                else
+                {
+                    *outbuf = UnicodeInvalidChar;
+                }
+                data++;
+                outbuf++;
+                //throw new InvalidOperationException("unknown byte data");
             }
             return true;
         }
