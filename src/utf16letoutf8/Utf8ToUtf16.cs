@@ -293,7 +293,7 @@ namespace utf16letoutf8
                         data++;
                     }
                     // U+07FF
-                    else if ((*data & 0x1e) == 0 || ((*(data + 1) & 0x80) == 0))
+                    else if (((*data & 0x1e) | (*(data + 1) & 0x80)) == 0)
                     {
                         if (errorProcessor != null)
                         {
