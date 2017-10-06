@@ -12,12 +12,12 @@ namespace utf16letoutf8.bench
     [ShortRunJob]
     public class Utf8To16Bench
     {
-        // [Params(0x12, 0x123, 0x1234)]
-        [Params(0x12)]
+        [Params(0x12, 0x123, 0x1234)]
+        // [Params(0x12)]
         public int CharacterCode;
-        [Params(16, 10 * 1024)]
+        [Params(10 * 1024)]
         public int Length;
-        [Params(1000)]
+        [Params(100)]
         public int LoopNum;
         [Benchmark]
         public void UnsafeUtf8ToUtf16()
@@ -41,21 +41,23 @@ namespace utf16letoutf8.bench
         public void UnsafeUtf8ToUtf16Preallocated()
         {
             var bytes = Encoding.UTF8.GetBytes(new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray()));
-            char[] buf = new char[bytes.Length];
+            char[] buf = System.Buffers.ArrayPool<char>.Shared.Rent(bytes.Length);
             for (int i = 0; i < LoopNum; i++)
             {
                 Utf8ToUtf16.ToUtf16Chars(bytes, 0, bytes.Length, buf, 0);
             }
+            System.Buffers.ArrayPool<char>.Shared.Return(buf);
         }
         [Benchmark]
         public void ConvertWithFrameworkPreallocated()
         {
             var bytes = Encoding.UTF8.GetBytes(new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray()));
-            char[] buf = new char[bytes.Length];
+            char[] buf = System.Buffers.ArrayPool<char>.Shared.Rent(bytes.Length);
             for (int i = 0; i < LoopNum; i++)
             {
                 Encoding.UTF8.GetChars(bytes, 0, bytes.Length, buf, 0);
             }
+            System.Buffers.ArrayPool<char>.Shared.Return(buf);
         }
     }
 
