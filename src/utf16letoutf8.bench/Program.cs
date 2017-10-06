@@ -25,7 +25,7 @@ namespace utf16letoutf8.bench
             var bytes = Encoding.UTF8.GetBytes(new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray()));
             for (int i = 0; i < LoopNum; i++)
             {
-                Utf8ToUtf16.ToUtf16String(bytes, 0, Length);
+                Utf8ToUtf16.ToUtf16String(bytes, 0, bytes.Length);
             }
         }
         [Benchmark]
