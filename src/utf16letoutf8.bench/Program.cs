@@ -15,7 +15,7 @@ namespace utf16letoutf8.bench
         // [Params(0x12, 0x123, 0x1234)]
         [Params(0x12)]
         public int CharacterCode;
-        [Params(0xffff)]
+        [Params(16, 10 * 1024)]
         public int Length;
         [Params(1000)]
         public int LoopNum;
@@ -35,6 +35,26 @@ namespace utf16letoutf8.bench
             for (int i = 0; i < LoopNum; i++)
             {
                 Encoding.UTF8.GetString(bytes);
+            }
+        }
+        [Benchmark]
+        public void UnsafeUtf8ToUtf16Preallocated()
+        {
+            var bytes = Encoding.UTF8.GetBytes(new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray()));
+            char[] buf = new char[bytes.Length];
+            for (int i = 0; i < LoopNum; i++)
+            {
+                Utf8ToUtf16.ToUtf16Chars(bytes, 0, bytes.Length, buf, 0);
+            }
+        }
+        [Benchmark]
+        public void ConvertWithFrameworkPreallocated()
+        {
+            var bytes = Encoding.UTF8.GetBytes(new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray()));
+            char[] buf = new char[bytes.Length];
+            for (int i = 0; i < LoopNum; i++)
+            {
+                Encoding.UTF8.GetChars(bytes, 0, bytes.Length, buf, 0);
             }
         }
     }

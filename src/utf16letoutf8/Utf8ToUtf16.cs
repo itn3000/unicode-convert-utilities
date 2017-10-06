@@ -57,6 +57,19 @@ namespace utf16letoutf8
                 return new string(beginptr, 0, (int)(iterptr - beginptr));
             }
         }
+        public static unsafe int ToUtf16Chars(byte[] data, int offset, int count, char[] buffer, int bufferOffset, InvalidDataProcessor processor = null)
+        {
+            if (data.Length < offset + count)
+            {
+                throw new IndexOutOfRangeException("offset + count exceeds on byte array length");
+            }
+            var dataptr = (byte*)Unsafe.AsPointer(ref data[offset]);
+            var endptr = dataptr + count;
+            char* iterptr = (char*)Unsafe.AsPointer(ref buffer[offset]);
+            char* beginptr = iterptr;
+            while (UpdateCharUnsafe(ref dataptr, ref endptr, ref iterptr, processor)) ;
+            return (int)(iterptr - beginptr);
+        }
         const char UnicodeInvalidChar = (char)0xfffd;
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static unsafe bool UpdateCharUnsafe(ref byte* data, ref byte* endptr, ref char* outbuf, InvalidDataProcessor errorProcessor)
@@ -71,6 +84,7 @@ namespace utf16letoutf8
                 byte* outptr = (byte*)outbuf;
                 while (data < stopptr)
                 {
+<<<<<<< Updated upstream
                     if ((*(ulong*)data & unchecked(0x8080808080808080UL)) == 0)
                     {
                         // outbuf[0] = (char)data[0];
@@ -106,6 +120,35 @@ namespace utf16letoutf8
                         outptr += 16;
                     }
                     else
+=======
+                    bool IsLittleEndian = BitConverter.IsLittleEndian;
+                    byte* stopptr = endptr - 8;
+                    while (data < stopptr)
+                    {
+                        ref var ch = ref *(uint*)data;
+                        ref var ch2 = ref *(uint*)(data + 4);
+                        if (((ch | ch2) & unchecked(0x80808080U)) == 0)
+                        {
+                            *(ulong*)outbuf = unchecked((ulong)((ch & 0x7f) | ((ch & 0x7f00) << 8) | ((ch & 0x7f0000) << 16) | ((ch & 0x7f000000) << 24)));
+                            *(ulong*)(outbuf + 4) = unchecked((ulong)((ch2 & 0x7f) | ((ch2 & 0x7f00) << 8) | ((ch2 & 0x7f0000) << 16) | ((ch2 & 0x7f000000) << 24)));
+                            // outbuf[0] = (char)(ch & 0x7f);
+                            // outbuf[1] = (char)((ch & 0x7f00) >> 8);
+                            // outbuf[2] = (char)((ch & 0x7f0000) >> 16);
+                            // outbuf[3] = (char)((ch & 0x7f000000) >> 24);
+                            // outbuf[4] = (char)(ch2 & 0x7f);
+                            // outbuf[5] = (char)((ch2 & 0x7f00) >> 8);
+                            // outbuf[6] = (char)((ch2 & 0x7f0000) >> 16);
+                            // outbuf[7] = (char)((ch2 & 0x7f000000) >> 24);
+                            data += 8;
+                            outbuf += 8;
+                        }
+                        else
+                        {
+                            break;
+                        }
+                    }
+                    while (data < endptr)
+>>>>>>> Stashed changes
                     {
                         break;
                     }
