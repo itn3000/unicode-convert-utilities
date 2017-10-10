@@ -5,6 +5,7 @@ namespace utf16letoutf8
     using System.Collections.Generic;
     using System.Text;
     using System.Runtime.CompilerServices;
+    using System.Numerics;
     public static class Utf8ToUtf16
     {
         public interface InvalidDataProcessor
@@ -66,8 +67,7 @@ namespace utf16letoutf8
             var dataptr = (byte*)Unsafe.AsPointer(ref data[offset]);
             var endptr = dataptr + count;
             var beginptr = (char*)Unsafe.AsPointer(ref buffer[offset]);
-
-            char* iterptr = beginptr;
+            var iterptr = beginptr;
             UpdateCharUnsafe(ref dataptr, ref endptr, ref iterptr, ref processor);
             return (int)(iterptr - beginptr);
         }
