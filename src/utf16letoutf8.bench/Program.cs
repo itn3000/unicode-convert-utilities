@@ -19,7 +19,7 @@ namespace utf16letoutf8.bench
         public int Length;
         [Params(100)]
         public int LoopNum;
-        [Benchmark]
+        // [Benchmark]
         public void UnsafeUtf8ToUtf16()
         {
             var bytes = Encoding.UTF8.GetBytes(new string(Enumerable.Range(0, Length).Select(x => (char)CharacterCode).ToArray()));
@@ -65,14 +65,14 @@ namespace utf16letoutf8.bench
     {
         static void Main(string[] args)
         {
-            var reporter = BenchmarkRunner.Run<Utf8To16Bench>();
+            var reporter = BenchmarkRunner.Run<Utf8AutoMatonBench>();
             // BenchmarkRunner.Run<Utf16UtilityBench>();
             // var bench = new Utf8To16Bench();
             // bench.CharacterCode = 0x12;
             // bench.Length = 0x1ffff;
             // bench.LoopNum = 10;
             // bench.UnsafeUtf8ToUtf16();
-            // bench.ConvertWithFramework();
         }
     }
+
 }

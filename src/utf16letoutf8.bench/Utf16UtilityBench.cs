@@ -13,7 +13,7 @@ namespace utf16letoutf8.bench
         // [Params(0x12, 0x123, 0x1234)]
         [Params(0x123)]
         public int CharacterCode;
-        [Params(16, 1024)]
+        [Params(1, 8, 16, 1024)]
         // [Params(1024)]
         public int Length;
         [Params(1000)]
