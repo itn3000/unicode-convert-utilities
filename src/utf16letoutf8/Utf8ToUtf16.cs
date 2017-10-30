@@ -130,7 +130,35 @@ namespace utf16letoutf8
                         continue;
                     }
                 }
-                else if ((first & 0xf0) == 0xf0)
+                else if ((data[dataoffset] & 0xe0) == 0xc0)
+                {
+                    if (dataoffset + 2 > endoffset)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    // U+07FF
+                    else if ((data[dataoffset + 1] & 0xc0) == 0x80)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    else if (((data[dataoffset] & 0x1e) | (data[dataoffset + 1] & 0x80)) == 0)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    else
+                    {
+                        dest[destoffset] = (char)(((data[dataoffset] & 0x1f) << 6) | ((data[dataoffset + 1]) & 0x3f));
+                        dataoffset += 2;
+                        destoffset++;
+                    }
+                }
+                else if ((first & 0xf8) == 0xf0)
                 {
                     ref var destch = ref Unsafe.As<char, char>(ref dest[destoffset]);
                     if (dataoffset + 4 > endoffset)
@@ -139,30 +167,18 @@ namespace utf16letoutf8
                         dataoffset++;
                         destoffset++;
                     }
+                    else if ((data[dataoffset + 1] & data[dataoffset + 2] & data[dataoffset + 3] & 0xc0) != 0x80)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
                     // between U+110000 and U+1FFFFF should retrieve as invalid unicode point
                     else if (((data[dataoffset] & 0x07) | (data[dataoffset + 1] & 0x30)) == 0 || (((data[dataoffset] & 0x03) | (data[dataoffset + 1] & 0x30)) != 0))
                     {
                         destch = UnicodeInvalidChar;
                         dataoffset++;
                         destoffset++;
-                    }
-                    else if ((data[dataoffset + 1] & 0x80) == 0)
-                    {
-                        dest[destoffset] = UnicodeInvalidChar;
-                        destoffset++;
-                        dataoffset++;
-                    }
-                    else if ((data[dataoffset + 2] & 0x80) == 0)
-                    {
-                        dest[destoffset] = UnicodeInvalidChar;
-                        destoffset++;
-                        dataoffset += 2;
-                    }
-                    else if ((data[dataoffset + 3] & 0x80) == 0)
-                    {
-                        dest[destoffset] = UnicodeInvalidChar;
-                        destoffset++;
-                        dataoffset += 3;
                     }
                     else
                     {
@@ -193,7 +209,7 @@ namespace utf16letoutf8
                         destoffset += 2;
                     }
                 }
-                else if ((data[dataoffset] & 0xe0) == 0xe0)
+                else if ((data[dataoffset] & 0xf0) == 0xe0)
                 {
                     if (dataoffset + 3 > endoffset)
                     {
@@ -207,17 +223,11 @@ namespace utf16letoutf8
                         destoffset++;
                         dataoffset++;
                     }
-                    else if ((data[dataoffset + 1] & 0x80) == 0)
+                    else if ((data[dataoffset + 1] & data[dataoffset + 2] & 0xc0) != 0x80)
                     {
                         dest[destoffset] = UnicodeInvalidChar;
                         destoffset++;
                         dataoffset++;
-                    }
-                    else if ((data[dataoffset + 2] & 0x80) == 0)
-                    {
-                        dest[destoffset] = UnicodeInvalidChar;
-                        destoffset++;
-                        dataoffset += 2;
                     }
                     else
                     {
@@ -228,28 +238,6 @@ namespace utf16letoutf8
                             | (data[dataoffset + 2] & 0x3f));
                         dataoffset += 3;
                         destoffset += 3;
-                    }
-                }
-                else if ((data[dataoffset] & 0xc0) == 0xc0)
-                {
-                    if (dataoffset + 2 > endoffset)
-                    {
-                        dest[destoffset] = UnicodeInvalidChar;
-                        destoffset++;
-                        dataoffset++;
-                    }
-                    // U+07FF
-                    else if (((data[dataoffset] & 0x1e) | (data[dataoffset + 1] & 0x80)) == 0)
-                    {
-                        dest[destoffset] = UnicodeInvalidChar;
-                        destoffset++;
-                        dataoffset++;
-                    }
-                    else
-                    {
-                        dest[destoffset] = (char)(((data[dataoffset] & 0x1f) << 6) | ((data[dataoffset + 1]) & 0x3f));
-                        dataoffset += 2;
-                        destoffset++;
                     }
                 }
                 else
@@ -298,7 +286,7 @@ namespace utf16letoutf8
                                 break;
                             }
                         }
-                        while(data < endptr)
+                        while (data < endptr)
                         {
                             if (*data >= 0x80)
                             {
@@ -314,7 +302,7 @@ namespace utf16letoutf8
                         continue;
                     }
                 }
-                else if ((*data & 0xf0) == 0xf0)
+                else if ((*data & 0xf8) == 0xf0)
                 {
                     if (data + 4 > endptr)
                     {
@@ -343,7 +331,7 @@ namespace utf16letoutf8
                         outbuf++;
                         data++;
                     }
-                    else if ((*(data + 1) & 0x80) == 0)
+                    else if ((*(data + 1) & (*(data + 2)) & (*(data + 3)) & 0xc0) != 0x80)
                     {
                         if (errorProcessor != null)
                         {
@@ -355,32 +343,6 @@ namespace utf16letoutf8
                         }
                         outbuf++;
                         data++;
-                    }
-                    else if ((*(data + 2) & 0x80) == 0)
-                    {
-                        if (errorProcessor != null)
-                        {
-                            errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
-                        }
-                        else
-                        {
-                            *outbuf = UnicodeInvalidChar;
-                        }
-                        outbuf++;
-                        data += 2;
-                    }
-                    else if ((*(data + 3) & 0x80) == 0)
-                    {
-                        if (errorProcessor != null)
-                        {
-                            errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
-                        }
-                        else
-                        {
-                            *outbuf = UnicodeInvalidChar;
-                        }
-                        outbuf++;
-                        data += 3;
                     }
                     else
                     {
@@ -411,7 +373,7 @@ namespace utf16letoutf8
                         outbuf++;
                     }
                 }
-                else if ((*data & 0xe0) == 0xe0)
+                else if ((*data & 0xf0) == 0xe0)
                 {
                     if (data + 3 > endptr)
                     {
@@ -439,7 +401,7 @@ namespace utf16letoutf8
                         data++;
                         outbuf++;
                     }
-                    else if ((*(data + 1) & 0x80) == 0)
+                    else if ((*(data + 1) & (*(data + 2)) & 0xc0) != 0x80)
                     {
                         if (errorProcessor != null)
                         {
@@ -452,19 +414,6 @@ namespace utf16letoutf8
                         outbuf++;
                         data++;
                     }
-                    else if ((*(data + 2) & 0x80) == 0)
-                    {
-                        if (errorProcessor != null)
-                        {
-                            errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
-                        }
-                        else
-                        {
-                            *outbuf = UnicodeInvalidChar;
-                        }
-                        outbuf++;
-                        data += 2;
-                    }
                     else
                     {
                         // U+FFFF
@@ -476,8 +425,55 @@ namespace utf16letoutf8
                         outbuf++;
                     }
                 }
-                else if ((*data & 0xc0) == 0xc0)
+                else if ((*data & 0xe0) == 0xc0)
                 {
+                    switch (endptr - data)
+                    {
+                        case 0:
+                            break;
+                        case 1:
+                            if(errorProcessor != null)
+                            {
+                                errorProcessor.RetrieveError(ref *data, ref *outbuf);
+                            }else{
+                                *outbuf = UnicodeInvalidChar;
+                            }
+                            outbuf++;
+                            data++;
+                            break;
+                        case 2:
+                        case 3:
+                            break;
+                        case 4:
+                        case 5:
+                            break;
+                        case 6:
+                        case 7:
+                            break;
+                        default:
+                            if(Assign0x7FF(ref data, ref outbuf, errorProcessor))
+                            {
+                                if(Assign0x7FF(ref data, ref outbuf, errorProcessor))
+                                {
+                                    if(Assign0x7FF(ref data, ref outbuf, errorProcessor))
+                                    {
+                                        Assign0x7FF(ref data, ref outbuf, errorProcessor);
+                                    }else{
+                                        data += 5;
+                                        outbuf += 
+                                    }
+                                }
+                                else
+                                {
+                                    data += 3;
+                                    outbuf += 2;
+                                }
+                            }else{
+                                data++;
+                                outbuf++;
+                            }
+                            break;
+                    }
                     if (data + 2 > endptr)
                     {
                         if (errorProcessor != null)
@@ -491,8 +487,21 @@ namespace utf16letoutf8
                         outbuf++;
                         data++;
                     }
+                    else if ((*(data + 1) & 0xc0) != 0x80)
+                    {
+                        if (errorProcessor != null)
+                        {
+                            errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                        }
+                        else
+                        {
+                            *outbuf = UnicodeInvalidChar;
+                        }
+                        outbuf++;
+                        data++;
+                    }
                     // U+07FF
-                    else if (((*data & 0x1e) | (*(data + 1) & 0x80)) == 0)
+                    else if ((*data & 0x1e) == 0)
                     {
                         if (errorProcessor != null)
                         {
@@ -526,6 +535,41 @@ namespace utf16letoutf8
                     outbuf++;
                     //throw new InvalidOperationException("unknown byte data");
                 }
+            }
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static unsafe bool Assign0x7FF(ref byte* data, ref char* outbuf, InvalidDataProcessor errorProcessor, out bool isInvalidPrefix)
+        {
+
+            if ((*(data + 1) & 0xc0) != 0x80)
+            {
+                if (errorProcessor != null)
+                {
+                    errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                }
+                else
+                {
+                    *outbuf = UnicodeInvalidChar;
+                }
+                return false;
+            }
+            // U+07FF
+            else if ((*data & 0x1e) == 0)
+            {
+                if (errorProcessor != null)
+                {
+                    errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                }
+                else
+                {
+                    *outbuf = UnicodeInvalidChar;
+                }
+                return false;
+            }
+            else
+            {
+                outbuf[0] = (char)(((*data & 0x1f) << 6) | ((*(data + 1)) & 0x3f));
+                return true;
             }
         }
         public static CharEnumerable ToUtf16Enumerable(byte[] data, int offset)
