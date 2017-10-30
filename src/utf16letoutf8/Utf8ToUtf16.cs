@@ -71,7 +71,196 @@ namespace utf16letoutf8
             UpdateCharUnsafe(ref dataptr, ref endptr, ref iterptr, ref processor);
             return (int)(iterptr - beginptr);
         }
+        public static unsafe int ToUtf16Chars2(byte[] data, int offset, int count, char[] buffer, int bufferOffset)
+        {
+            if (data.Length < offset + count)
+            {
+                throw new IndexOutOfRangeException("offset + count exceeds on byte array length");
+            }
+            return UpdateCharUnsafe2(ref data, ref offset, ref count, ref buffer);
+        }
         const char UnicodeInvalidChar = (char)0xfffd;
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal static unsafe int UpdateCharUnsafe2(ref byte[] data, ref int offset, ref int count, ref char[] dest)
+        {
+            int dataoffset = offset;
+            int destoffset = 0;
+            int endoffset = offset + count;
+            while (dataoffset < endoffset)
+            {
+                ref var first = ref Unsafe.As<byte, byte>(ref data[dataoffset]);
+                if (first < 0x80)
+                {
+                    unchecked
+                    {
+                        int stopoffset = endoffset - 8;
+                        while (dataoffset < stopoffset)
+                        {
+                            ref var destch = ref dest[destoffset];
+                            ref var uvalue = ref Unsafe.As<byte, ulong>(ref data[dataoffset]);
+                            ref var b = ref data[dataoffset];
+                            if ((uvalue & 0x8080808080808080UL) == 0)
+                            {
+                                destch = (char)b;
+                                Unsafe.AddByteOffset(ref destch, (IntPtr)2) = (char)Unsafe.AddByteOffset(ref b, (IntPtr)1);
+                                Unsafe.AddByteOffset(ref destch, (IntPtr)4) = (char)Unsafe.AddByteOffset(ref b, (IntPtr)2);
+                                Unsafe.AddByteOffset(ref destch, (IntPtr)6) = (char)Unsafe.AddByteOffset(ref b, (IntPtr)3);
+                                Unsafe.AddByteOffset(ref destch, (IntPtr)8) = (char)Unsafe.AddByteOffset(ref b, (IntPtr)4);
+                                Unsafe.AddByteOffset(ref destch, (IntPtr)10) = (char)Unsafe.AddByteOffset(ref b, (IntPtr)5);
+                                Unsafe.AddByteOffset(ref destch, (IntPtr)12) = (char)Unsafe.AddByteOffset(ref b, (IntPtr)6);
+                                Unsafe.AddByteOffset(ref destch, (IntPtr)14) = (char)Unsafe.AddByteOffset(ref b, (IntPtr)7);
+                                destoffset += 8;
+                                dataoffset += 8;
+                            }
+                            else
+                            {
+                                break;
+                            }
+                        }
+                        while (dataoffset < endoffset)
+                        {
+                            if (first >= 0x80)
+                            {
+                                break;
+                            }
+                            dest[destoffset] = (char)data[dataoffset];
+                            dataoffset += 1;
+                            destoffset += 1;
+                        }
+                        continue;
+                    }
+                }
+                else if ((first & 0xf0) == 0xf0)
+                {
+                    ref var destch = ref Unsafe.As<char, char>(ref dest[destoffset]);
+                    if (dataoffset + 4 > endoffset)
+                    {
+                        destch = UnicodeInvalidChar;
+                        dataoffset++;
+                        destoffset++;
+                    }
+                    // between U+110000 and U+1FFFFF should retrieve as invalid unicode point
+                    else if (((data[dataoffset] & 0x07) | (data[dataoffset + 1] & 0x30)) == 0 || (((data[dataoffset] & 0x03) | (data[dataoffset + 1] & 0x30)) != 0))
+                    {
+                        destch = UnicodeInvalidChar;
+                        dataoffset++;
+                        destoffset++;
+                    }
+                    else if ((data[dataoffset + 1] & 0x80) == 0)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    else if ((data[dataoffset + 2] & 0x80) == 0)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset += 2;
+                    }
+                    else if ((data[dataoffset + 3] & 0x80) == 0)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset += 3;
+                    }
+                    else
+                    {
+                        // U+10FFFF(surrogate pair)
+                        var w = ((((((data[dataoffset]) & 0x7) << 2)
+                            | ((data[dataoffset + 1] & 0x30) >> 4))
+                            - 1) & 0x0f) << 6;
+                        dest[destoffset] = (char)(
+                            // 6bit
+                            0xd800
+                            // 4bit
+                            | w
+                            // 4bit
+                            | ((data[dataoffset + 1] & 0x0f) << 2)
+                            // 2bit
+                            | ((data[dataoffset + 2] & 0x30) >> 4)
+                        );
+
+                        dest[destoffset + 1] = (char)(
+                            // 6bit
+                            0xdc00 |
+                            // 4bit
+                            ((data[dataoffset + 2] & 0xf) << 6) |
+                            // 6bit
+                            (data[dataoffset + 3] & 0x3f)
+                        );
+                        dataoffset += 4;
+                        destoffset += 2;
+                    }
+                }
+                else if ((data[dataoffset] & 0xe0) == 0xe0)
+                {
+                    if (dataoffset + 3 > endoffset)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    else if ((((data[dataoffset] & 0xf) | (data[dataoffset + 1] & 0x20)) == 0))
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    else if ((data[dataoffset + 1] & 0x80) == 0)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    else if ((data[dataoffset + 2] & 0x80) == 0)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset += 2;
+                    }
+                    else
+                    {
+                        // U+FFFF
+                        // 4 + 6 + 6 = 16
+                        dest[destoffset] = (char)((data[dataoffset] & 0x0f) << 12
+                            | (data[dataoffset + 1] & 0x3f) << 6
+                            | (data[dataoffset + 2] & 0x3f));
+                        dataoffset += 3;
+                        destoffset += 3;
+                    }
+                }
+                else if ((data[dataoffset] & 0xc0) == 0xc0)
+                {
+                    if (dataoffset + 2 > endoffset)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    // U+07FF
+                    else if (((data[dataoffset] & 0x1e) | (data[dataoffset + 1] & 0x80)) == 0)
+                    {
+                        dest[destoffset] = UnicodeInvalidChar;
+                        destoffset++;
+                        dataoffset++;
+                    }
+                    else
+                    {
+                        dest[destoffset] = (char)(((data[dataoffset] & 0x1f) << 6) | ((data[dataoffset + 1]) & 0x3f));
+                        dataoffset += 2;
+                        destoffset++;
+                    }
+                }
+                else
+                {
+                    dest[destoffset] = UnicodeInvalidChar;
+                    destoffset++;
+                    dataoffset++;
+                }
+            }
+            return destoffset;
+        }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal static unsafe void UpdateCharUnsafe(ref byte* data, ref byte* endptr, ref char* outbuf, ref InvalidDataProcessor errorProcessor)
         {
@@ -86,7 +275,7 @@ namespace utf16letoutf8
                         {
                             if ((*(ulong*)data & 0x8080808080808080UL) == 0)
                             {
-                                outbuf[0] = (char)*data;
+                                outbuf[0] = (char)data[0];
                                 outbuf[1] = (char)data[1];
                                 outbuf[2] = (char)data[2];
                                 outbuf[3] = (char)data[3];
@@ -94,6 +283,13 @@ namespace utf16letoutf8
                                 outbuf[5] = (char)data[5];
                                 outbuf[6] = (char)data[6];
                                 outbuf[7] = (char)data[7];
+                                // Unsafe.AddByteOffset(ref destch, (IntPtr)2) = (char)data[1];
+                                // Unsafe.AddByteOffset(ref destch, (IntPtr)4) = (char)data[2];
+                                // Unsafe.AddByteOffset(ref destch, (IntPtr)6) = (char)data[3];
+                                // Unsafe.AddByteOffset(ref destch, (IntPtr)8) = (char)data[4];
+                                // Unsafe.AddByteOffset(ref destch, (IntPtr)10) = (char)data[5];
+                                // Unsafe.AddByteOffset(ref destch, (IntPtr)12) = (char)data[6];
+                                // Unsafe.AddByteOffset(ref destch, (IntPtr)14) = (char)data[7];
                                 data += 8;
                                 outbuf += 8;
                             }
@@ -102,15 +298,18 @@ namespace utf16letoutf8
                                 break;
                             }
                         }
-                        while (data < endptr)
+                        while(data < endptr)
                         {
                             if (*data >= 0x80)
                             {
                                 break;
                             }
-                            *outbuf = (char)*data;
-                            data++;
-                            outbuf++;
+                            else
+                            {
+                                *outbuf = (char)*data;
+                                data++;
+                                outbuf++;
+                            }
                         }
                         continue;
                     }
