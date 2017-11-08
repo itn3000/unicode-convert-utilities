@@ -12,8 +12,9 @@ namespace utf16letoutf8.bench
     [ShortRunJob]
     public class Utf8To16Bench
     {
-        [Params(0x12, 0x123, 0x1234)]
-        // [Params(0x12)]
+        // [Params(0x12, 0x123, 0x1234)]
+        [Params(0x12)]
+        // [Params(0x123)]
         public int CharacterCode;
         [Params(16, 100 * 1024)]
         public int Length;

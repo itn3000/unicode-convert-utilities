@@ -256,51 +256,11 @@ namespace utf16letoutf8
             {
                 if (*data < 0x80)
                 {
-                    unchecked
-                    {
-                        byte* stopptr = endptr - 8;
-                        while (data < stopptr)
-                        {
-                            if ((*(ulong*)data & 0x8080808080808080UL) == 0)
-                            {
-                                outbuf[0] = (char)data[0];
-                                outbuf[1] = (char)data[1];
-                                outbuf[2] = (char)data[2];
-                                outbuf[3] = (char)data[3];
-                                outbuf[4] = (char)data[4];
-                                outbuf[5] = (char)data[5];
-                                outbuf[6] = (char)data[6];
-                                outbuf[7] = (char)data[7];
-                                // Unsafe.AddByteOffset(ref destch, (IntPtr)2) = (char)data[1];
-                                // Unsafe.AddByteOffset(ref destch, (IntPtr)4) = (char)data[2];
-                                // Unsafe.AddByteOffset(ref destch, (IntPtr)6) = (char)data[3];
-                                // Unsafe.AddByteOffset(ref destch, (IntPtr)8) = (char)data[4];
-                                // Unsafe.AddByteOffset(ref destch, (IntPtr)10) = (char)data[5];
-                                // Unsafe.AddByteOffset(ref destch, (IntPtr)12) = (char)data[6];
-                                // Unsafe.AddByteOffset(ref destch, (IntPtr)14) = (char)data[7];
-                                data += 8;
-                                outbuf += 8;
-                            }
-                            else
-                            {
-                                break;
-                            }
-                        }
-                        while (data < endptr)
-                        {
-                            if (*data >= 0x80)
-                            {
-                                break;
-                            }
-                            else
-                            {
-                                *outbuf = (char)*data;
-                                data++;
-                                outbuf++;
-                            }
-                        }
-                        continue;
-                    }
+                    Process0x7F(ref data, ref outbuf, endptr, errorProcessor);
+                }
+                else if ((*data & 0xe0) == 0xc0)
+                {
+                    Process0x7FF(ref data, ref outbuf, endptr, errorProcessor);
                 }
                 else if ((*data & 0xf8) == 0xf0)
                 {
@@ -425,102 +385,6 @@ namespace utf16letoutf8
                         outbuf++;
                     }
                 }
-                else if ((*data & 0xe0) == 0xc0)
-                {
-                    switch (endptr - data)
-                    {
-                        case 0:
-                            break;
-                        case 1:
-                            if(errorProcessor != null)
-                            {
-                                errorProcessor.RetrieveError(ref *data, ref *outbuf);
-                            }else{
-                                *outbuf = UnicodeInvalidChar;
-                            }
-                            outbuf++;
-                            data++;
-                            break;
-                        case 2:
-                        case 3:
-                            break;
-                        case 4:
-                        case 5:
-                            break;
-                        case 6:
-                        case 7:
-                            break;
-                        default:
-                            if(Assign0x7FF(ref data, ref outbuf, errorProcessor))
-                            {
-                                if(Assign0x7FF(ref data, ref outbuf, errorProcessor))
-                                {
-                                    if(Assign0x7FF(ref data, ref outbuf, errorProcessor))
-                                    {
-                                        Assign0x7FF(ref data, ref outbuf, errorProcessor);
-                                    }else{
-                                        data += 5;
-                                        outbuf += 
-                                    }
-                                }
-                                else
-                                {
-                                    data += 3;
-                                    outbuf += 2;
-                                }
-                            }else{
-                                data++;
-                                outbuf++;
-                            }
-                            break;
-                    }
-                    if (data + 2 > endptr)
-                    {
-                        if (errorProcessor != null)
-                        {
-                            errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
-                        }
-                        else
-                        {
-                            *outbuf = UnicodeInvalidChar;
-                        }
-                        outbuf++;
-                        data++;
-                    }
-                    else if ((*(data + 1) & 0xc0) != 0x80)
-                    {
-                        if (errorProcessor != null)
-                        {
-                            errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
-                        }
-                        else
-                        {
-                            *outbuf = UnicodeInvalidChar;
-                        }
-                        outbuf++;
-                        data++;
-                    }
-                    // U+07FF
-                    else if ((*data & 0x1e) == 0)
-                    {
-                        if (errorProcessor != null)
-                        {
-                            errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
-                        }
-                        else
-                        {
-                            *outbuf = UnicodeInvalidChar;
-                        }
-                        outbuf++;
-                        data++;
-                    }
-                    else
-                    {
-                        outbuf[0] = (char)(((*data & 0x1f) << 6) | ((*(data + 1)) & 0x3f));
-                        data += 2;
-                        outbuf++;
-                    }
-                }
                 else
                 {
                     if (errorProcessor != null)
@@ -538,39 +402,71 @@ namespace utf16letoutf8
             }
         }
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        static unsafe bool Assign0x7FF(ref byte* data, ref char* outbuf, InvalidDataProcessor errorProcessor, out bool isInvalidPrefix)
+        static unsafe void Process0x7F(ref byte* data, ref char* outbuf, byte* endptr, InvalidDataProcessor errorProcessor)
         {
-
-            if ((*(data + 1) & 0xc0) != 0x80)
+            unchecked
             {
-                if (errorProcessor != null)
+                byte* stopptr = endptr - 8;
+                while (data <= stopptr)
                 {
-                    errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    if ((*(ulong*)data & 0x8080808080808080UL) == 0)
+                    {
+                        outbuf[0] = (char)data[0];
+                        outbuf[1] = (char)data[1];
+                        outbuf[2] = (char)data[2];
+                        outbuf[3] = (char)data[3];
+                        outbuf[4] = (char)data[4];
+                        outbuf[5] = (char)data[5];
+                        outbuf[6] = (char)data[6];
+                        outbuf[7] = (char)data[7];
+                        // Unsafe.AddByteOffset(ref destch, (IntPtr)2) = (char)data[1];
+                        // Unsafe.AddByteOffset(ref destch, (IntPtr)4) = (char)data[2];
+                        // Unsafe.AddByteOffset(ref destch, (IntPtr)6) = (char)data[3];
+                        // Unsafe.AddByteOffset(ref destch, (IntPtr)8) = (char)data[4];
+                        // Unsafe.AddByteOffset(ref destch, (IntPtr)10) = (char)data[5];
+                        // Unsafe.AddByteOffset(ref destch, (IntPtr)12) = (char)data[6];
+                        // Unsafe.AddByteOffset(ref destch, (IntPtr)14) = (char)data[7];
+                        data += 8;
+                        outbuf += 8;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+                while (data < endptr && *data < 0x80)
+                {
+                    *outbuf = (char)*data;
+                    data++;
+                    outbuf++;
+                }
+            }
+        }
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        static unsafe void Process0x7FF(ref byte* data, ref char* outbuf, byte* endptr, InvalidDataProcessor errorProcessor)
+        {
+            do
+            {
+                if (data + 2 > endptr || ((*(data + 1) & 0xc0) != 0x80) || ((*data & 0x1e) == 0))
+                {
+                    if (errorProcessor != null)
+                    {
+                        errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
+                    }
+                    else
+                    {
+                        *outbuf = UnicodeInvalidChar;
+                    }
+                    outbuf++;
+                    data++;
                 }
                 else
                 {
-                    *outbuf = UnicodeInvalidChar;
+                    outbuf[0] = (char)(((*data & 0x1f) << 6) | ((*(data + 1)) & 0x3f));
+                    data += 2;
+                    outbuf++;
                 }
-                return false;
-            }
-            // U+07FF
-            else if ((*data & 0x1e) == 0)
-            {
-                if (errorProcessor != null)
-                {
-                    errorProcessor.RetrieveError(ref Unsafe.AsRef<byte>(data), ref Unsafe.AsRef<char>(outbuf));
-                }
-                else
-                {
-                    *outbuf = UnicodeInvalidChar;
-                }
-                return false;
-            }
-            else
-            {
-                outbuf[0] = (char)(((*data & 0x1f) << 6) | ((*(data + 1)) & 0x3f));
-                return true;
-            }
+            } while (data < endptr && ((*data & 0xe0) == 0xc0));
         }
         public static CharEnumerable ToUtf16Enumerable(byte[] data, int offset)
         {
